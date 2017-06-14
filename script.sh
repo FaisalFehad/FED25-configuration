@@ -1,5 +1,38 @@
+
+#!/bin/bash
+
+# Enable I/O scheduler
+# This script originally had NOOP as the default scheduler for SSDs, but now deadline is used instead.
+# The scheduler variable has replaced by two separate variables, one each for SSDs and HDDs.
+# This will make it easier to switch back to NOOP or any other scheduler for both types of hard disks in the future.
+# References
+# IO scheduler udev rules: https://wiki.archlinux.org/index.php/Solid_State_Drives
+# Deadline on SSDs: https://wiki.debian.org/SSDOptimization#Low-Latency_IO-Scheduler
+
+ssd_scheduler="deadline"
+hdd_scheduler="deadline"
+
+cat <<EOF | tee "/etc/udev/rules.d/60-io_schedulers.rules" > /dev/null 2>&1
+# Set deadline scheduler for non-rotating disks
+ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="$ssd_scheduler"
+# Set deadline scheduler for rotating disks
+ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="$hdd_scheduler"
+EOF
+
+for disk in /sys/block/sd*; do
+    rot="$disk/queue/rotational"
+    sched="$disk/queue/scheduler"
+
+    if [[ $(cat "$rot") -eq 0 ]]; then
+        echo "$ssd_scheduler | tee $sched > /dev/null 2>&1"
+    elif [[ $(cat "$rot") -eq 1 ]]; then
+        echo "$hdd_scheduler | tee $sched > /dev/null 2>&1"
+    fi
+done
+
+
 # Disable camera
-sudo modprobe -r  uvcvideo
+modprobe -r  uvcvideo
 echo "blacklist uvcvideo"|sudo tee /etc/modprobe.d/blacklistcamera.conf
 
 # Enable camera
@@ -46,7 +79,7 @@ dnf install fribidi harfbuzz cmake curl wget ffmpeg youtube-dl pulseaudio libreo
 curl https://www.folkswithhats.org/installer | sudo bash
 
 # Arfedy
-dnf clean all && sudo dnf copr enable youssefmsourani/arfedy -y
+dnf clean all &&  dnf copr enable youssefmsourani/arfedy -y
 dnf install arfedy -y
 
 
@@ -119,18 +152,15 @@ dnf install vlc -y
 dnf install mpv vdr-mpv -y
 
 # codecs
-dnf install -y gstreamer{1,}-{plugin-crystalhd,ffmpeg,plugins-{good,ugly,bad{,-free,-nonfree,-freeworld,-extras}{,-extras}}} libmpg123 lame-libs gstreamer1-libav gstreamer-plugins-espeak xine-lib xine-lib-devel xine-lib-extras gstreamer-plugins-fc gstreamer-rtsp lame gstreamer-ffmpeg ffmpeg x264 faad2 flac amrnb amrwb gstreamer1-plugins-bad-free-gtk --setopt=strict=0 -y
-
+dnf install -y gstreamer{1,}-{plugin-crystalhd,ffmpeg,plugins-{good,ugly,bad{,-free,-nonfree,-freeworld,-extras}{,-extras}}} libmpg123 lame-libs gstreamer1-libav gstreamer-plugins-espeak xine-lib xine-lib-devel xine-lib-extras gstreamer-plugins-fc gstreamer-rtsp lame gstreamer-ffmpeg ffmpeg x264 faad2 flac amrnb amrwb gstreamer1-plugins-bad-free-gtk --setopt=strict=0
 dnf config-manager --set-enabled fedora-cisco-openh264 -y
-
 dnf install mozilla-openh264 gstreamer1-plugin-openh264 -y
 
 
-# Vim
+# Text editors
 dnf install vim -y
 dnf install nano -y
 
-# Atom
 dnf copr -y enable mosquito/atom
 dnf -y install atom
 
@@ -170,7 +200,7 @@ EOL
 
 # WPS Office
 URL=$(wget "http://wps-community.org/download.html" -O - | tr ' ' '\n' | grep -o "https\?://.*/wps-office-.*$(uname -m).rpm\"" | head -n 1 | rev | cut -c 2- | rev )
- 
+
 if [[ "$URL" != "" ]]; then
 	dnf -y install "$URL"
 else
@@ -183,9 +213,8 @@ dnf -y install binutils gcc make patch libgomp glibc-headers glibc-devel kernel-
 dnf -y install VirtualBox
 
 # Docker
-
 # Stable repo
-sudo dnf config-manager \
+   dnf config-manager \
     --add-repo \
     https://download.docker.com/linux/fedora/docker-ce.repo
 
@@ -198,4 +227,3 @@ dnf remove docker \
 
 dnf -y install dnf-plugins-core
 dnf -y install docker-ce
-
